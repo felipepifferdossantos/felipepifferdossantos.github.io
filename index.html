@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A Última Chama: O Confronto dos Irmãos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Papiro e Sombra -->
+    <!-- Application Structure Plan: The SPA uses a thematic, non-linear dashboard structure with four main sections: Visão Geral, Personagens, Linha do Tempo, and Temas. This was chosen over a simple linear script reader to encourage user exploration and synthesis of information. Users can jump between character arcs, plot points, and thematic analyses, allowing them to connect different story elements in a way that a linear read doesn't facilitate. The core interactions involve clicking on elements (characters, episodes) to dynamically update detail panels and visualizations, creating an interconnected and user-driven discovery experience. -->
+    <!-- Visualization & Content Choices:
+    - Report Info: Character presence across the story -> Goal: Compare character importance/focus -> Viz: Bar Chart -> Interaction: Updates when a character is selected -> Justification: Provides a quick visual summary of a character's journey -> Library: Chart.js/Canvas.
+    - Report Info: Episodic plot progression -> Goal: Organize & Inform -> Presentation: Interactive Timeline -> Interaction: Click episode to show summary -> Justification: Breaks down the dense script into manageable, explorable chunks -> Library/Method: HTML/CSS/JS.
+    - Report Info: Central conflict of Logic vs. Emotion -> Goal: Analyze & Compare -> Viz: Donut Chart -> Interaction: Can be filtered by Act -> Justification: Visually represents the story's core thematic tension -> Library: Chart.js/Canvas.
+    - CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDFBF7; /* Cor de papiro claro */
+            color: #4A4A4A;
+        }
+        .accent-color { color: #8A6E5F; } /* Sombra suave */
+        .accent-bg { background-color: #8A6E5F; }
+        .secondary-bg { background-color: #EAE3D9; }
+        .highlight-color { color: #C89F70; } /* Ouro para esperança */
+        .highlight-bg { background-color: #C89F70; }
+        .umbra-color { color: #6d5b7b; /* Roxo para a corrupção */ }
+        .nav-link {
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            transition: background-color 0.3s, color 0.3s;
+            border: 2px solid transparent;
+        }
+        .nav-link.active {
+            background-color: #8A6E5F;
+            color: #FDFBF7;
+        }
+        .nav-link:not(.active):hover {
+            background-color: #EAE3D9;
+        }
+        .content-section {
+            display: none;
+        }
+        .content-section.active {
+            display: block;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .timeline-item {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .timeline-item:hover {
+            transform: translateY(-5px);
+        }
+        .timeline-item.active {
+            border-color: #C89F70;
+            box-shadow: 0 4px 14px rgba(200, 159, 112, 0.4);
+        }
+        /* Estilos adicionais para o conteúdo detalhado dos episódios */
+        .episode-detail-scene-title {
+            font-size: 1.125rem; /* text-lg */
+            font-weight: 700; /* font-bold */
+            color: #8A6E5F; /* accent-color */
+            margin-top: 1rem; /* mt-4 */
+            margin-bottom: 0.25rem; /* mb-1 */
+        }
+        .episode-detail-location {
+            color: #6B7280; /* text-gray-500 */
+            font-size: 0.75rem; /* text-xs */
+            font-style: italic;
+            margin-bottom: 0.5rem; /* mb-2 */
+        }
+        .episode-detail-paragraph {
+            color: #4A4A4A; /* text-gray-700 */
+            font-size: 0.875rem; /* text-sm */
+            margin-bottom: 0.25rem; /* mb-1 */
+            line-height: 1.5;
+        }
+        .episode-detail-dialogue {
+            border-left: 2px solid #9CA3AF; /* border-gray-400 */
+            padding-left: 0.75rem; /* pl-3 */
+            margin-left: 0.5rem; /* ml-2 */
+            margin-top: 0.25rem; /* my-1 */
+            margin-bottom: 0.25rem; /* my-1 */
+            font-size: 0.875rem; /* text-sm */
+        }
+        .episode-detail-dialogue p:first-child {
+            font-weight: 500; /* font-medium */
+            color: #374151; /* text-gray-800 */
+        }
+        .episode-detail-dialogue p:last-child {
+            color: #4A4A4A; /* text-gray-700 */
+            font-style: italic;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="container mx-auto p-4 md:p-8">
+
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold accent-color">O Confronto dos Irmãos</h1>
+            <p class="text-lg md:text-xl text-gray-600 mt-2">A CHAMA PERDIDA</p>
+        </header>
+
+        <nav class="flex flex-wrap justify-center gap-2 md:gap-4 mb-10">
+            <a onclick="showSection('overview')" class="nav-link active">Visão Geral</a>
+            <a onclick="showSection('characters')" class="nav-link">Personagens</a>
+            <a onclick="showSection('timeline')" class="nav-link">Linha do Tempo</a>
+            <a onclick="showSection('all-episodes')" class="nav-link">Episódios</a>
+            <a onclick="showSection('themes')" class="nav-link">Temas e Conflitos</a>
+        </nav>
+
+        <main id="main-content">
+
+            <section id="overview" class="content-section active">
+                <div class="bg-white p-6 md:p-8 rounded-xl shadow-md border border-gray-200">
+                    <h2 class="text-2xl font-bold accent-color mb-4">Bem-vindo a Chama!</h2>
+                    <p class="text-gray-700 leading-relaxed">
+                        Esta aplicação interativa serve como um guia para o mundo de Chama, uma saga sobre dois irmãos separados pelo destino, cujos caminhos opostos moldam o futuro de um reino. Dante, movido pela emoção e pela lealdade, embarca numa busca para encontrar o seu irmão, Virgilio, que foi moldado por uma filosofia de lógica fria para erradicar o sofrimento humano. Explore a narrativa através da linha do tempo, conheça as personagens que impulsionam a história e aprofunde-se nos conflitos temáticos de lógica contra emoção e ordem contra caos.
+                    </p>
+                </div>
+            </section>
+
+            <section id="characters" class="content-section">
+                <div class="text-center mb-6">
+                     <h2 class="text-2xl font-bold accent-color mb-2">Protagonistas e Antagonistas</h2>
+                     <p class="text-gray-600">Clique numa personagem para explorar a sua história e o seu impacto na narrativa.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                    <div class="md:col-span-4">
+                        <div id="character-list" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 gap-4">
+                        </div>
+                    </div>
+                    <div class="md:col-span-8 bg-white p-6 rounded-xl shadow-md border border-gray-200">
+                        <div id="character-details">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="timeline" class="content-section">
+                 <div class="text-center mb-6">
+                     <h2 class="text-2xl font-bold accent-color mb-2">A Jornada Através dos Atos</h2>
+                     <p class="text-gray-600">Selecione um episódio para ver o seu resumo e os eventos chave.</p>
+                </div>
+                <div id="timeline-acts" class="space-y-8"></div>
+                <div id="episode-details-container" class="mt-8 bg-white p-6 rounded-xl shadow-md border border-gray-200" style="display: none;">
+                </div>
+            </section>
+
+            <section id="all-episodes" class="content-section">
+                <div class="bg-white p-6 md:p-8 rounded-xl shadow-md border border-gray-200">
+                    <h2 class="text-2xl font-bold accent-color mb-4">Todos os Episódios</h2>
+                    <p class="text-gray-700 leading-relaxed mb-6">
+                        Aqui está uma lista completa de todos os episódios da saga Chama, com seus títulos e resumos detalhados.
+                    </p>
+                    <div id="all-episodes-list" class="space-y-6">
+                        <!-- Episodes will be rendered here by JavaScript -->
+                    </div>
+                </div>
+            </section>
+
+            <section id="themes" class="content-section">
+                <div class="text-center mb-6">
+                     <h2 class="text-2xl font-bold accent-color mb-2">O Coração do Conflito</h2>
+                     <p class="text-gray-600">Explore as ideias centrais que definem a luta por Chama.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+                        <h3 class="text-xl font-bold accent-color mb-4">Lógica vs. Emoção</h3>
+                        <p class="mb-4 text-gray-700">O conflito central da história. Virgilio e o Rei Magnus defendem que a emoção é a raiz de todo o sofrimento, uma "doença" que deve ser curada pela lógica pura. Dante e os seus aliados lutam pelo direito de sentir, argumentando que a imperfeição e a capacidade de sentir dor e alegria são o que define a humanidade.</p>
+                        <div class="chart-container h-64 md:h-72">
+                            <canvas id="themeChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+                        <h3 class="text-xl font-bold accent-color mb-4">Citações Chave</h3>
+                        <div class="space-y-4 text-sm">
+                            <blockquote class="border-l-4 border-gray-300 pl-4 italic">
+                                <p>"O amor é a lógica dos fracos. Eu lhe ofereço propósito."</p>
+                                <cite class="text-gray-500 not-italic block mt-1">- Rei Magnus</cite>
+                            </blockquote>
+                            <blockquote class="border-l-4 highlight-color pl-4 italic">
+                                <p>"A doença não apaga a alma. Apenas... a tranca."</p>
+                                <cite class="text-gray-500 not-italic block mt-1">- Dante</cite>
+                            </blockquote>
+                            <blockquote class="border-l-4 border-gray-300 pl-4 italic">
+                                <p>"Sua emoção o torna previsível. Cada golpe é um grito. E gritos são fáceis de silenciar."</p>
+                                <cite class="text-gray-500 not-italic block mt-1">- Virgilio</cite>
+                            </blockquote>
+                             <blockquote class="border-l-4 highlight-color pl-4 italic">
+                                <p>"Uma vida sem o risco da dor é uma vida sem a possibilidade da alegria."</p>
+                                <cite class="text-gray-500 not-italic block mt-1">- Alira</cite>
+                            </blockquote>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+    </div>
+
+    <script>
+        const charactersData = {
+            'dante': { name: 'Dante', bio: 'Separado do seu irmão gémeo na infância, Dante cresce nas ruas movido por uma promessa: encontrar Virgilio. A sua jornada é guiada pela emoção, compaixão e uma crença inabalável na esperança.', arc: 'De um órfão em busca de vingança a um líder que luta pelo direito de todos sentirem, Dante aprende que a verdadeira força não está na ausência de dor, mas na capacidade de se reerguer após ela.', scenes: { act1: 8, act2: 7, act3: 8 } },
+            'virgilio': { name: 'Virgilio', bio: 'Levado pelo Rei Magnus, Virgilio é criado numa filosofia de lógica pura, acreditando que as emoções são uma doença a ser erradicada para alcançar a paz. Torna-se o arquiteto da "cura" do reino.', arc: 'A sua jornada é a de um idealista que se perde na busca pela perfeição. O reencontro com Dante força-o a confrontar a falha na sua lógica e o custo humano da sua paz, levando a um sacrifício final.', scenes: { act1: 3, act2: 6, act3: 5 } },
+            'magnus': { name: 'Rei Magnus', bio: 'Um rei quebrado por uma perda pessoal, Magnus vê a imperfeição e o sentimento como a fonte de todo o sofrimento. A sua dor transforma-se numa cruzada tirânica para impor uma ordem perfeita e vazia no mundo.', arc: 'De um governante de luto a um avatar da própria ausência, Magnus consome-se na sua ideologia até se tornar a personificação do vazio que tanto temia, o inimigo final da história.', scenes: { act1: 4, act2: 2, act3: 4 } },
+            'alira': { name: 'Alira', bio: 'Uma ex-general elfa da Guarda Real, Alira é uma estratega brilhante que inicialmente valoriza a ordem acima de tudo. A sua lealdade é testada quando testemunha a crueldade do regime do Rei.', arc: 'Alira passa de uma executora leal da ordem para a líder militar da rebelião. Ela aprende a equilibrar a sua disciplina tática com a necessidade de lutar por uma causa imperfeita, mas justa.', scenes: { act1: 6, act2: 8, act3: 6 } },
+            'korara': { name: 'Korara', bio: 'Uma anã pragmática e "Consultora de Ativos" do Distrito das Guildas, Korara é motivada principalmente pelo lucro. A sua lealdade é comprada, mas a sua coragem é genuína.', arc: 'Korara junta-se à causa por interesse, mas permanece por lealdade. Ela descobre que há valores maiores do que o ouro, sacrificando a sua riqueza pessoal pela causa e encontrando um novo tipo de "lucro" na amizade e na liberdade.', scenes: { act1: 6, act2: 7, act3: 6 } },
+        };
+
+        const episodesData = [
+            {
+                id: 1,
+                act: 1,
+                title: 'O Rei Vazio e a Promessa Quebrada',
+                summary: 'O Rei Magnus, assombrado pela dor, ordena o rapto de uma criança. No processo, os irmãos Dante e Virgilio são separados à força.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'INT. QUARTO INFANTIL, PALÁCIO DO VÁCUO - NOITE' },
+                    { type: 'paragraph', text: 'O silêncio no quarto é pesado, quase sólido. A única coisa que se move é a poeira, dançando nos feixes de luar que cortam a escuridão. O REI MAGNUS, envolto em sua armadura negra, parece uma estátua de obsidiana no centro do cômodo. Cada linha de sua postura grita tensão.' },
+                    { type: 'paragraph', text: 'O quarto é um santuário congelado no tempo. Um berço de carvalho branco, com pássaros entalhados na madeira, permanece vazio. Brinquedos de madeira, perfeitamente alinhados, acumulam poeira em uma prateleira.' },
+                    { type: 'paragraph', text: 'Magnus ergue uma mão enluvada. O couro range, quebrando o silêncio. Ele hesita, depois traça a borda do berço com um dedo. A mão, que poderia esmagar um crânio, treme visivelmente. Seu olhar se desvia para um retrato na parede: uma Rainha com um sorriso forçado e olhos que carregam uma tristeza antiga. Um músculo salta na mandíbula de Magnus.' },
+                    { type: 'paragraph', text: 'Ele se vira de repente, o movimento brusco e violento. Sai do quarto sem olhar para trás, fechando a porta com um clique suave que soa como a tampa de um caixão. A dor em seu rosto não é de um rei, mas de um homem que perdeu tudo. E nessa perda, uma ideia terrível fincou raízes: o sofrimento nasce da imperfeição. E a imperfeição, como uma erva daninha, precisa ser arrancada.' },
+                    { type: 'sceneTitle', text: 'CENA 2' },
+                    { type: 'location', text: 'INT. ORFANATO DE PEDRA CINZENTA (AGHARTA) - MESMA NOITE' },
+                    { type: 'paragraph', text: 'O ar é frio e úmido, com o cheiro de pedra mofada e da sopa rala que foi o jantar. As paredes parecem suar.' },
+                    { type: 'paragraph', text: 'Em um canto, DANTE (13) está encolhido, tentando proteger seu irmão gêmeo, VIRGILIO (13), da corrente de ar que entra por uma fresta na parede. Virgilio, alheio ao frio, está completamente absorto em um livro gasto, lendo à luz bruxuleante de uma tocha.' },
+                    { type: 'paragraph', text: 'Uma tigela de sopa, intocada, está no chão ao lado de Dante.' },
+                    { type: 'paragraph', text: 'O estômago de Dante ronca alto.' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: '(Sem tirar os olhos da página) Você devia ter comido.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(Dá de ombros, o que o faz tremer de frio) Estou bem. Você que precisa. Ler gasta... sei lá, gasta cérebro.' },
+                    { type: 'paragraph', text: 'Virgilio finalmente levanta o olhar do livro, um pequeno sorriso no rosto. Ele empurra a tigela de volta com o pé.' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: 'A gente divide. Como sempre.' },
+                    { type: 'paragraph', text: 'Antes que Dante possa responder, as portas do salão principal explodem, arrancadas das dobradiças. O som é ensurdecedor.' },
+                    { type: 'paragraph', text: 'Soldados em armaduras negras idênticas à do Rei entram em formação, suas botas pesadas ecoando no chão de pedra. Magnus entra logo atrás, seus olhos varrendo o salão caótico. Ele não parece ver as crianças assustadas. Seu olhar para em Dante, mas não há reconhecimento. É o olhar de um homem selecionando uma ferramenta.' },
+                    { type: 'paragraph', text: 'Dois soldados marcham na direção deles.' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: '(A voz fina, mas firme) O que vocês querem com ele?' },
+                    { type: 'paragraph', text: 'Os soldados param, confusos. Olham um para o outro, depois para Magnus, esperando ordens. Magnus, impaciente com o atraso, faz um gesto brusco com a mão. "Peguem-no."' },
+                    { type: 'paragraph', text: 'Os soldados, interpretando mal a ordem, agarram o garoto que está na frente.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(Um grito que rasga a garganta) NÃO! VIRGILIO!' },
+                    { type: 'paragraph', text: 'Dante se lança para a frente, mas o cabo de uma lança o atinge no peito, jogando-o no chão. O ar some de seus pulmões. A última coisa que ele vê antes de a escuridão o engolir é o rosto aterrorizado de Virgilio sendo arrastado para fora, a mão estendida na sua direção, os dedos tentando alcançar os seus.' }
+                ]
+            },
+            {
+                id: 2,
+                act: 1,
+                title: 'A Gaiola Dourada e o Ferro da Promessa',
+                summary: 'Virgilio é introduzido a uma vida de luxo e à filosofia da lógica pura de Magnus, enquanto Dante forja um juramento silencioso de encontrar o seu irmão.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'INT. APOSENTOS DE HÓSPEDES, PALÁCIO DO VÁCUO - NOITE' },
+                    { type: 'paragraph', text: 'Virgilio cai de joelhos sobre um tapete tão macio que parece engoli-lo. O quarto é maior que o salão inteiro do orfanato. Lençóis de seda cobrem uma cama enorme, uma lareira crepita, e as paredes são forradas com estantes cheias de livros. É lindo e sufocante.' },
+                    { type: 'paragraph', text: 'Magnus entra, já sem a armadura, vestindo uma túnica escura e simples. Ele coloca uma bandeja de prata sobre uma mesa. Nela, há pão quente, queijo e frutas. O cheiro faz o estômago de Virgilio doer.' },
+                    { type: 'dialogue', speaker: 'MAGNUS', text: '(A voz é surpreendentemente calma) Coma.' },
+                    { type: 'paragraph', text: 'Virgilio não se mexe. Ele olha para a porta, depois para o Rei.' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: '(A voz é um sussurro trêmulo) Onde está o Dante? O que você fez com meu irmão?' },
+                    { type: 'dialogue', speaker: 'MAGNUS', text: '(Ignora a pergunta, pegando um livro da estante) O mundo lá fora... é um erro. É frio, caótico. Seu irmão te amava, sim. Mas o que ele podia te oferecer? Frio, fome... miséria. Ele chamava isso de proteção. O que você crer ser amor é a lógica dos fracos.' },
+                    { type: 'paragraph', text: 'Ele coloca o livro na mesa, ao lado da comida.' },
+                    { type: 'dialogue', speaker: 'MAGNUS', text: 'Eu posso te oferecer um propósito.' },
+                    { type: 'paragraph', text: 'O estômago de Virgilio ronca de novo, alto, uma traição. Seus olhos se enchem de lágrimas de raiva e humilhação. Ele pega um pedaço de pão. A primeira mordida é tão saborosa que o faz soluçar.' },
+                    { type: 'dialogue', speaker: 'MAGNUS', text: '(Um fantasma de sorriso toca seus lábios) Isso. A lógica da sobrevivência. É a única verdade que importa. Seu irmão te ensinou a sentir. Eu vou te ensinar a pensar.' },
+                    { type: 'sceneTitle', text: 'CENA 2' },
+                    { type: 'location', text: 'INT. ORFANATO DE PEDRA CINZENTA - AMANHECER' },
+                    { type: 'paragraph', text: 'Dante acorda com uma dor aguda na cabeça e uma dor ainda pior no peito. O lugar ao seu lado, onde Virgilio dormia, está vazio. O frio parece ter se instalado dentro dele.' },
+                    { type: 'paragraph', text: 'Ele se levanta, cambaleando. O rosto, ainda de uma criança, endurece. A culpa é um gosto amargo na boca. Eu devia ter reagido mais rápido. Devia ter lutado mais.' },
+                    { type: 'paragraph', text: 'Ele caminha até a porta quebrada. A luz cinzenta da manhã de Agharta ilumina seu rosto. Ele não grita, não chora. Ele forja uma promessa no silêncio de sua alma, uma promessa fria e dura como ferro.' },
+                    { type: 'paragraph', text: 'Ele vai encontrar seu irmão. Custe o que custar.' }
+                ]
+            },
+            {
+                id: 3,
+                act: 1,
+                title: 'A Doença Silenciosa e o Distrito das Guildas',
+                summary: 'Anos depois, Dante investiga uma misteriosa "doença" de apatia e a sua busca leva-o ao Distrito das Guildas, onde conhece Alira e Korara.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'EXT. BECOS DE AGHARTA - ANOS DEPOIS - DIA' },
+                    { type: 'paragraph', text: 'Quatro anos se passaram.' },
+                    { type: 'paragraph', text: 'Dante (agora 17) não é mais um garoto. Ele é magro, mas forte, com o olhar atento de quem aprendeu a sobreviver nas ruas. Ele se move pelos becos de Agharta como uma sombra.' },
+                    { type: 'paragraph', text: 'MONTAGEM RÁPIDA:' },
+                    { type: 'paragraph', text: 'Dante, mais novo, perdendo uma briga por um pedaço de pão.' },
+                    { type: 'paragraph', text: 'Dante, um pouco mais velho, vencendo a mesma briga.' },
+                    { type: 'paragraph', text: 'Ele entrega metade do pão a uma criança menor.' },
+                    { type: 'paragraph', text: 'Ele paga um informante com moedas roubadas, perguntando sobre "o garoto que o Rei levou". O informante balança a cabeça e desaparece. O nome do Rei é um muro.' },
+                    { type: 'paragraph', text: 'Ele começa a notar algo estranho. Uma "doença" silenciosa. Vê um padeiro, um homem antes alegre, parado em frente ao seu forno frio, o olhar vazio. Vê uma musicista de rua, seus dedos pairando sobre as cordas de seu alaúde, incapaz de tocar. É uma apatia que se espalha como uma praga, uma névoa cinzenta que parece emanar do palácio no topo da cidade.' },
+                    { type: 'paragraph', text: 'Sua busca, agora não apenas por Virgilio, mas por respostas, o leva ao único lugar em Agharta onde a verdade tem um preço: o Distrito das Guildas.' },
+                    { type: 'sceneTitle', text: 'CENA 2' },
+                    { type: 'location', text: 'EXT. DISTRITO DAS GUILDAS - NOITE' },
+                    { type: 'paragraph', text: 'O Distrito é uma explosão de vida em meio à apatia crescente. O ar é uma mistura de cerveja derramada, metal quente de forjas próximas e carne assando. O som é uma cacofonia de risadas altas, canções de taverna e o tinir constante de moedas.' },
+                    { type: 'paragraph', text: 'Dante entra no Salão Principal da Guilda dos Mercenários. O lugar é cavernoso, esfumaçado e lotado.' },
+                    { type: 'paragraph', text: 'Atrás de um balcão de carvalho maciço, duas figuras comandam o caos. ALIRA, uma elfa de cabelos prateados e postura de quem já liderou exércitos, observa o salão com um olhar analítico. Ao seu lado, KORARA, uma anã de tranças ruivas e braços musculosos, pole uma moeda de ouro com uma dedicação quase religiosa.' },
+                    { type: 'paragraph', text: 'Dante se aproxima do balcão, esperando uma pausa no barulho.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: '(Seu olhar o mede de cima a baixo. A voz é calma, mas corta o barulho) Se está perdido, a saída é por ali. Se veio procurar trabalho, fale seu nome e suas habilidades.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(Sem tirar os olhos da moeda, a voz é um resmungo grave) Ou melhor, mostre o ouro. Ninguém aqui vive de reputação. Eu sou Korara. "Consultora de Ativos". Se precisar de algo, ou de alguém, eu sou a pessoa certa. Desde que o preço seja justo.' },
+                    { type: 'paragraph', text: 'Dante coloca as mãos no balcão, inclinando-se para a frente.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(A voz é baixa e rouca, forçada a sair) Não quero trabalho. E não tenho ouro. Tem uma... doença se espalhando pela cidade. As pessoas estão... se apagando. E eu procuro meu irmão. O Rei o levou há quatro anos.' },
+                    { type: 'paragraph', text: 'A palavra "Rei" tem um efeito imediato. Um mercenário próximo, que estava ouvindo, se afasta discretamente. O barulho ao redor do balcão parece diminuir um pouco.' },
+                    { type: 'paragraph', text: 'Alira se inclina, o interesse em seus olhos substituindo a indiferença. Korara finalmente para de polir a moeda e o encara pela primeira vez.' }
+                ]
+            },
+            {
+                id: 4,
+                act: 1,
+                title: 'O Jogo de Avarus e a Primeira Aliança',
+                summary: 'Uma pista misteriosa de Avarus leva Dante, Alira e Korara a formarem uma aliança improvável para investigar a origem da doença no Jardim Primordial.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'INT. SALÃO PRINCIPAL DA GUILDA - CONTINUAÇÃO' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: '(Em voz baixa) Falar o nome do Rei em voz alta neste lugar é uma péssima ideia. Acusá-lo, então... é suicídio.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(Guarda a moeda no bolso, cruzando os braços) O garoto tem coragem, eu admito. Mas coragem não paga as contas. Um serviço contra o Rei? O risco é... incalculável.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Eu não estou pedindo um serviço. Estou dizendo o que está acontecendo. Essa "doença"... vocês não viram?' },
+                    { type: 'paragraph', text: 'Alira e Korara trocam um olhar. Um olhar que confirma que sim, elas viram.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: 'Eu vi. Soldados da minha antiga companhia... homens bons. Agora... apenas cumprem ordens. Sem questionar. Sem pensar. O Rei chama isso de "disciplina aprimorada".' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(Bufa) E os mercadores... estão apáticos. Pessoas vazias não compram, não vendem, não negociam. É péssimo para os negócios.' },
+                    { type: 'paragraph', text: 'Enquanto conversam, uma figura esguia, vestida com sedas finas, desliza por entre a multidão e se senta em um banco próximo, pedindo uma bebida. É AVARUS. Ele os observa com um sorriso divertido, como quem assiste a uma peça.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Preciso saber de onde isso vem. Preciso chegar à fonte.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: 'E o que você faria se chegasse? Você é só um garoto com uma espada.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Eu sou o irmão dele.' },
+                    { type: 'paragraph', text: 'A frase paira no ar, simples e pesada.' },
+                    { type: 'paragraph', text: 'Avarus se levanta, como se fosse sair. Ao passar por Dante, ele "tropeça", esbarrando nele.' },
+                    { type: 'dialogue', speaker: 'AVARUS', text: '(Um sorriso que não alcança os olhos) Oh, mil perdões. Que falta de jeito a minha.' },
+                    { type: 'paragraph', text: 'Ele se endireita e continua seu caminho, desaparecendo na multidão. Dante sente algo em seu bolso. Ele enfia a mão e puxa um pequeno pergaminho enrolado. A caligrafia é elegante, quase uma zombaria.' },
+                    { type: 'paragraph', text: '“A doença floresce onde a vida começa. O Jardim Primordial.”' },
+                    { type: 'paragraph', text: 'Dante coloca o pergaminho no balcão.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Eu preciso ir para lá.' },
+                    { type: 'paragraph', text: 'Alira lê a nota, seu rosto sério.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: 'O Jardim Primordial é território proibido. Guardado. Perigoso. Mas... se a fonte dessa... apatia está lá, a Ordem tem interesse em saber. A verdadeira Ordem. Eu vou com você.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(Pega o pergaminho, analisando-o) Tsc. Um bilhete anônimo, um destino perigoso e uma missão sem pagamento adiantado? É um péssimo modelo de negócios. (Ela olha de Dante para Alira, um brilho de curiosidade em seus olhos) Mas... um mistério que pode afetar meus lucros em toda a cidade... isso é um investimento. Certo, eu topo. Mas que fique registrado: se eu não sair dessa com os bolsos mais pesados, sua dívida comigo vai ser lendária, garoto.' }
+                ]
+            },
+            {
+                id: 5,
+                act: 1,
+                title: 'O Jardim Primordial e a Criatura Sofredora',
+                summary: 'O grupo descobre que a fonte da corrupção no Jardim é um golem que não está a atacar por maldade, mas a sofrer com uma doença.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'EXT. FLORESTA NOS ARREDORES DE AGHARTA - DIA' },
+                    { type: 'paragraph', text: 'A jornada mostra a estranha dinâmica do grupo. Korara reclama a cada dois passos sobre o terreno irregular e a falta de uma caravana confortável. Alira se move em silêncio, seus sentidos élficos atentos a cada som, cada galho quebrado. Dante lidera o caminho, focado, a mão nunca longe do cabo da espada.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: 'Só para constar, meu contrato padrão inclui um adicional por terreno acidentado. E por insetos. Odeio insetos.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: '(Sussurrando) Fique quieta. Algo está errado.' },
+                    { type: 'paragraph', text: 'O ar fica mais pesado, mais frio. A floresta vibrante dá lugar a árvores retorcidas, com uma seiva roxa e doentia escorrendo de seus troncos. O chão está coberto de flores que desabrocham em cores febris e antinaturais. Não há som de pássaros ou animais. É um silêncio de morte.' },
+                    { type: 'paragraph', text: 'Eles chegam à entrada de um cânion. E então, eles ouvem. Um som baixo e gutural, o ranger de pedra contra pedra, seguido por um rugido que não é de fúria, mas de pura agonia.' },
+                    { type: 'paragraph', text: 'No centro do cânion, um COLOSSUSS, um golem elemental feito de pedra e terra, bate seu corpo maciço contra as paredes rochosas. Cristais roxos, pulsando com uma luz maligna, estão cravados em suas costas e ombros. Ele está ativamente tentando arrancá-los.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(Recuando um passo) Certo. O investimento acaba de se tornar muito arriscado. Hora de cortar as perdas.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: '(Já com sua rapieira em mãos) É uma besta corrompida. Ameaça a região. O procedimento é claro: neutralizar.' },
+                    { type: 'paragraph', text: 'Dante desembainha sua espada, mas não a aponta para a criatura. Ele observa. O golem arranha as próprias costas, quebrando um dos cristais menores. A criatura grita, um som que mistura dor e um breve alívio. Uma lágrima de seiva roxa escorre de seu olho de cristal.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(A voz baixa, cheia de certeza) Vocês não entendem. Ele não é o inimigo... ele está sofrendo.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: 'Isso é irrelevante. É uma força descontrolada.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Não. Não é uma praga que o controla. É uma doença. E ele está tentando se libertar. Se o matarmos, a doença vence. Mas se o libertarmos... provamos que ainda há esperança.' },
+                    { type: 'paragraph', text: 'Ele olha para as duas.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Eu vou libertá-lo. Com ou sem vocês.' }
+                ]
+            },
+            {
+                id: 6,
+                act: 1,
+                title: 'Batalha Pela Alma de Pedra',
+                summary: 'Em vez de destruir o golem, a equipa trabalha em conjunto para o libertar da sua corrupção, provando que a compaixão pode ser uma arma.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'EXT. CANION DO JARDIM PRIMORDIAL - CONTINUAÇÃO' },
+                    { type: 'paragraph', text: 'Alira hesita. A lógica de seu treinamento militar grita para abater o monstro. Mas as palavras de Dante, e a imagem daquela lágrima roxa, a fazem questionar. Korara, por sua vez, está fazendo cálculos mentais de risco versus recompensa.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: 'Libertá-lo? E qual é o plano, gênio? Pedir com jeitinho?' },
+                    { type: 'paragraph', text: 'O Colossus os vê. Ele ruge e avança, seus movimentos erráticos e desesperados.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: '(Tomando uma decisão) Certo. Plano B. Dante, distraia-o! Korara, procure por fraquezas estruturais! Eu vou mapear os cristais!' },
+                    { type: 'paragraph', text: 'A batalha começa. Não é uma luta para matar, mas uma cirurgia perigosa.' },
+                    { type: 'paragraph', text: 'Dante corre, ágil, atraindo os golpes pesados do golem. Ele o faz bater contra pilares de pedra enfraquecidos, usando o ambiente a seu favor.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: '(Gritando de cima de uma saliência) São cinco cristais principais! O maior está no peito! Os outros estão nas articulações!' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(Escondida atrás de uma rocha) O cristal no ombro esquerdo! A base está rachada, como uma pedra mal assentada! Um golpe forte ali e ele se solta!' },
+                    { type: 'paragraph', text: 'Dante atrai o golem, esquiva de um golpe que pulveriza a rocha onde ele estava, e salta nas costas da criatura. Com um golpe preciso, ele estilhaça o cristal do ombro. O golem ruge, mas seu braço esquerdo se move com mais liberdade.' },
+                    { type: 'paragraph', text: 'Eles continuam, trabalhando juntos. Alira identifica os alvos, Korara encontra os pontos fracos, e Dante executa os ataques arriscados.' },
+                    { type: 'paragraph', text: 'Finalmente, resta apenas um cristal, o maior, cravado no peito do golem, bem sobre seu coração de pedra. A criatura está exausta, quase de joelhos.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: 'É agora! Ele não aguenta mais!' },
+                    { type: 'paragraph', text: 'Dante corre e escala o corpo do golem. Ele chega ao peito da criatura. O golem o encara, e por trás da luz roxa pulsante, Dante vê não ódio, mas um pedido de ajuda.' },
+                    { type: 'paragraph', text: 'Ele levanta a espada, mas em vez de atacar, ele a enfia na fenda entre o cristal e a pedra, usando-a como uma alavanca.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(Gritando para as outras, o esforço tornando sua voz tensa) ME AJUDEM!' },
+                    { type: 'paragraph', text: 'Alira entende. Ela dispara uma flecha com uma corda amarrada na ponta, que se enrola no cabo da espada de Dante.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: 'Korara, puxe!' },
+                    { type: 'paragraph', text: 'As duas puxam a corda com toda a força. Dante usa a espada como alavanca. Há um som agudo, como vidro se partindo, e o cristal central se estilhaça em mil pedaços.' },
+                    { type: 'paragraph', text: 'A luz roxa morre.' },
+                    { type: 'paragraph', text: 'O Colossus solta um longo suspiro, um som como o de uma montanha se assentando. Ele lentamente se senta no chão do cânion, não mais uma besta furiosa, mas um guardião antigo, finalmente em paz.' },
+                    { type: 'paragraph', text: 'O silêncio que se segue é quebrado apenas pela respiração ofegante dos três. Eles se olham – a elfa, a anã e o garoto. A aliança improvável acabara de vencer sua primeira batalha, não pela força, mas pela compaixão.' }
+                ]
+            },
+            {
+                id: 7,
+                act: 1,
+                title: 'A Lágrima Única e a Semente da Dúvida',
+                summary: 'Ao curar uma criança apática, Dante prova que a alma das vítimas não foi destruída. A descoberta planta uma semente de dúvida em Alira sobre a sua lealdade ao Rei.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'EXT. VILA ABANDONADA - DIA' },
+                    { type: 'paragraph', text: 'O caminho para fora do Jardim Primordial os leva a uma pequena vila agrícola. Ou o que restou dela. Não há sinais de luta, nem corpos. Apenas um silêncio profundo e perturbador. Ferramentas agrícolas jazem onde caíram. Uma porta de uma casa bate com o vento, o único som no local.' },
+                    { type: 'paragraph', text: 'Eles encontram os moradores. Estão parados em seus campos, sentados em suas varandas, olhando para o nada. Seus olhos estão abertos, mas vazios.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(Sussurrando, desconfortável) Isto é pior do que o golem. Muito pior.' },
+                    { type: 'paragraph', text: 'Num beco entre duas casas, eles veem uma menina, CLOE (6), sentada no chão poeirento. Ela arrasta uma flor murcha para a frente e para trás, num movimento repetitivo e sem sentido. Seus olhos são de um azul vazio.' },
+                    { type: 'paragraph', text: 'Alira e Korara a observam com uma mistura de pena e impotência. Para elas, é mais uma vítima, um caso perdido.' },
+                    { type: 'paragraph', text: 'Dante se aproxima lentamente, para não a assustar. Ele se agacha. Tira do bolso uma pétala de uma flor do Jardim, agora purificada, que brilha com uma luz suave e dourada. Ele a coloca no chão, em frente à menina.' },
+                    { type: 'paragraph', text: 'Cloe para o movimento. Seus olhos vazios piscam. Lentamente, seu olhar desce e foca na pétala brilhante. Por um longo momento, nada acontece.' },
+                    { type: 'paragraph', text: 'Então, uma única lágrima escorre lentamente por sua bochecha empoeirada.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(A voz é um sussurro chocado) O que... o que isso significa?' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(Olhando para a lágrima, a voz cheia de uma compreensão dolorosa) Significa que ela ainda está lá dentro. A doença não apaga a alma. Apenas... a tranca.' },
+                    { type: 'paragraph', text: 'Enquanto Dante e Korara estão focados na menina, Alira se afasta alguns passos, virando-se como se estivesse a vigiar os arredores. Sua expressão é conflituosa. Ela tira discretamente um pequeno cristal de comunicação de seu cinto, um item padrão da Guarda Real. Ele brilha com uma luz fraca quando ela o ativa.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: '(Voz muito baixa, quase inaudível) General Orvak... sou eu. Encontrei algo... preocupante. Um garoto. Ele parece... reverter a corrupção. Não, eu não sei como. A situação aqui é mais complexa do que o Rei nos informou. A "praga"... ela não se comporta como nos disseram.' },
+                    { type: 'paragraph', text: 'Ela desativa o cristal, seu rosto uma máscara de incerteza. A prova de que Dante estava certo abalou a fundação de sua lealdade. Ela começa a se perguntar se está a lutar do lado certo desta guerra silenciosa.' }
+                ]
+            },
+            {
+                id: 8,
+                act: 1,
+                title: 'O Preço da Lógica e o Fim do Começo',
+                summary: 'No palácio, Virgilio, agora um jovem estratega, propõe usar a corrupção como uma ferramenta para impor a paz, solidificando o seu papel no plano de Magnus.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'INT. SALA DE ESTRATÉGIA, PALÁCIO DO VÁCUO - NOITE' },
+                    { type: 'paragraph', text: 'A sala é o epítome da ordem. Mapas imaculados, paredes de mármore polido, silêncio absoluto. VIRGILIO (17), agora um jovem de postura impecável e olhar frio, move marcadores de prata sobre um mapa de Chama. Sua túnica é escura, adornada com o selo do Rei.' },
+                    { type: 'paragraph', text: 'O REI MAGNUS o observa das sombras.' },
+                    { type: 'dialogue', speaker: 'MAGNUS', text: 'Recebemos relatórios. Focos de rebelião. Sentimento desordenado. A Guarda Real sugere a aniquilação total das vilas afetadas. Qual é a sua avaliação, Virgilio?' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: '(Não levanta o olhar do mapa. Sua voz é calma, precisa, desprovida de emoção) Ineficiente. A aniquilação cria mártires, o que por sua vez alimenta a esperança em outros. Um ciclo ilógico. A fonte do problema não é a vida, mas a vontade. A esperança.' },
+                    { type: 'paragraph', text: 'Ele move um marcador de prata para uma região agrícola.' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: 'Em vez de apagar as vilas, devemos controlar a própria fonte da corrupção. Usá-la. Transformá-la de uma praga numa ferramenta. Uma ferramenta para impor uma paz garantida pela ausência de esperança. Seria mais... lógico.' },
+                    { type: 'paragraph', text: 'Magnus sai das sombras. Ele coloca uma mão pesada, enluvada, no ombro de Virgilio.' },
+                    { type: 'dialogue', speaker: 'MAGNUS', text: 'Excelente. A semente da verdadeira lógica floresceu. Lembre-se sempre... de quem é o jardineiro.' },
+                    { type: 'sceneTitle', text: 'CENA 2' },
+                    { type: 'location', text: 'EXT. ACAMPAMENTO IMPROVISADO - NOITE' },
+                    { type: 'paragraph', text: 'Dante, Alira e Korara estão sentados ao redor de uma pequena fogueira. O silêncio entre eles é pesado.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: '(Quebra o silêncio, olhando para as chamas) O que vimos hoje... o golem a tentar curar-se, a menina... contradiz tudo o que a Ordem prega. O Rei fala em conter uma praga. Mas isto... parece orquestrado. Intencional.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(Resmungando enquanto afia um machado) Orquestrado ou não, está a arruinar a economia. E seja o que for que esteja a acontecer, o garoto aqui parece ser o único com uma pista. O que, do ponto de vista de investimento, o torna um ativo extremamente volátil... e valioso.' },
+                    { type: 'paragraph', text: 'Dante não responde. Ele cutuca o fogo com um galho. A imagem do rosto aterrorizado de Virgilio, de há quatro anos, queima em sua mente, tão viva quanto as chamas à sua frente.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(A voz baixa, mas firme) Eu não sou um ativo. E não tenho uma resposta. Só sei que preciso de chegar à fonte disto tudo. E preciso de encontrar o meu irmão.' },
+                    { type: 'paragraph', text: 'A câmara foca-se no rosto de Dante, iluminado pelo fogo. A sua determinação é clara. Do outro lado do reino, na frieza do palácio, a câmara foca-se no rosto de Virgilio, iluminado pela luz fria dos cristais. A sua lógica é inabalável.' },
+                    { type: 'paragraph', text: 'Dois irmãos, dois caminhos. O primeiro ato termina com os dois em rota de colisão inevitável.' }
+                ]
+            },
+            {
+                id: 9,
+                act: 2,
+                title: 'Colisão de Ideais',
+                summary: 'Dante e Virgilio reencontram-se em Veridia. O confronto ideológico transforma-se num combate físico, onde a lógica fria de Virgilio derrota a paixão de Dante.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'INT. SALA DE ESTRATÉGIA, PALÁCIO DO VÁCUO - DIA' },
+                    { type: 'paragraph', text: 'A sala é um oásis de ordem num mundo que mergulha no caos. Mapas impecáveis cobrem uma mesa de obsidiana polida. VIRGILIO (17), de pé, move marcadores de prata com uma precisão cirúrgica. Sua postura é rígida, seu rosto uma máscara de concentração.' },
+                    { type: 'paragraph', text: 'Um grupo de generais da Guarda Real, homens mais velhos, com cicatrizes e barbas grisalhas, observa-o. Há respeito em seus olhares, mas também um desconforto palpável.' },
+                    { type: 'dialogue', speaker: 'GENERAL ORVAK', text: '(Uma cicatriz profunda corta-lhe o rosto. A sua voz é um rosnado baixo) Lorde Virgilio, o plano é... audacioso. Mas esvaziar um povo inteiro da sua vontade... Se houver resistência, um motim...' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: '(Interrompe-o, sem erguer os olhos do mapa. A sua voz é calma, quase desinteressada) Eles não se vão revoltar, General. Para isso, precisariam de esperança. A esperança é o problema. Nós não estamos a matá-los. Estamos a... simplificá-los.' },
+                    { type: 'paragraph', text: 'Virgilio move um marcador sobre a vila de Veridia.' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: 'Veridia será o nosso protótipo. Um teste para provar que a paz é possível. Uma paz real.' },
+                    { type: 'paragraph', text: 'Orvak franze o sobrolho, trocando um olhar incerto com outro general. A confiança absoluta de Virgilio é mais intimidante do que qualquer grito de comando.' },
+                    { type: 'sceneTitle', text: 'CENA 2' },
+                    { type: 'location', text: 'EXT. VILA AGRÍCOLA DE VERIDIA - DIA' },
+                    { type: 'paragraph', text: 'A equipa de Dante chega e encontra um cenário de pesadelo silencioso. Fazendeiros, com os olhos vazios que eles já conhecem, movem-se como autómatos, colhendo trigo com uma eficiência mecânica. Não há conversas, nem canções, apenas o som do vento e das foices.' },
+                    { type: 'paragraph', text: 'No centro da vila, de pé numa carroça, dando ordens aos Guardas Reais, está Virgilio.' },
+                    { type: 'paragraph', text: 'Dante para. O ar foge-lhe dos pulmões. É ele. Mais velho, mais alto, mas inconfundivelmente ele. Por um momento, a alegria e o alívio inundam o seu rosto.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(Grita, a voz a falhar, uma mistura de alívio e horror) VIRGILIO!' },
+                    { type: 'paragraph', text: 'Virgilio vira-se lentamente. Os seus olhos encontram os de Dante. Não há surpresa, nem alegria. Apenas um reconhecimento frio. Ele parece... aborrecido com a interrupção.' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: '(A sua voz, calma, projeta-se sobre a praça) Dante. Eu devia ter imaginado que o sentimentalismo te traria aqui.' },
+                    { type: 'paragraph', text: 'A Guarda Real forma uma barreira entre os irmãos.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Virgilio, o que... o que lhes fizeste? Olha para eles!' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: '(Olha para os aldeões com indiferença) Eu libertei-os. Da dor. Do medo. De tudo o que te torna fraco.' },
+                    { type: 'paragraph', text: 'Aquelas palavras, ditas com tanta frieza, atingem Dante como um soco.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Isto não é liberdade! Eles estão vazios! Tu... tu roubaste-os!' },
+                    { type: 'paragraph', text: 'Ele avança. A batalha irrompe. Alira e Korara enfrentam os guardas, que agora lutam com uma coordenação assustadora.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: '(Aparando um golpe) Cuidado! Eles não hesitam! Korara, a linha!' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(Balançando o seu martelo) Já estou a tratar disso!' },
+                    { type: 'paragraph', text: 'Dante consegue romper a linha, os seus olhos fixos no irmão. O confronto é inevitável.' },
+                    { type: 'paragraph', text: 'Ele ataca com toda a fúria de quatro anos de busca. Virgilio defende-se com uma calma irritante, os seus movimentos mínimos e precisos.' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: '(Desvia de um golpe selvagem) Ainda a lutar com o coração. Tão estúpido. Foi sempre o teu problema, sabias? Sentir demais.' },
+                    { type: 'paragraph', text: 'Com um movimento rápido, Virgilio prende a lâmina de Dante e torce-a, desarmando-o. A espada de Dante cai no chão com um barulho metálico. Virgilio aponta a sua própria lâmina ao pescoço do irmão.' },
+                    { type: 'paragraph', text: 'Dante fica de joelhos, ofegante, derrotado.' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: '(A sua voz baixa, quase um sussurro) Para, Dante. Só te estás a magoar. Deixa-me ajudar-te.' },
+                    { type: 'paragraph', text: 'Ele baixa a arma e faz um gesto aos seus guardas. Eles começam uma retirada ordeira, levando alguns aldeões com eles.' },
+                    { type: 'paragraph', text: 'Virgilio vira as costas ao irmão e afasta-se, deixando Dante de joelhos no pó, no meio do silêncio opressivo da vila.' }
+                ]
+            },
+            {
+                id: 10,
+                act: 2,
+                title: 'O Jogo do Egoísta e a Voz na Montanha',
+                summary: 'A equipa arrasta-se para longe de Veridia. A derrota é um gosto amargo na boca. Dante caminha à frente, em silêncio, o seu corpo tenso de raiva e humilhação.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'EXT. ESTRADA PÓS-BATALHA - ANOITECER' },
+                    { type: 'paragraph', text: 'A equipa arrasta-se para longe de Veridia. A derrota é um gosto amargo na boca. Dante caminha à frente, em silêncio, o seu corpo tenso de raiva e humilhação.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(Chuta uma pedra com frustração) Que desastre. Ele nem sequer pestanejou! Olhou para ti como se fosses... uma conta mal feita. Um erro que ele precisava de corrigir.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: '(O seu olhar está distante, analítico) Ele usou a tua própria fúria contra ti, Dante. Ele estava a prever cada movimento teu porque ele... ele conhece-te.' },
+                    { type: 'paragraph', text: 'Dante para e bate com o punho numa árvore.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Aquele não era ele. Não pode ser.' },
+                    { type: 'paragraph', text: 'De repente, encontram uma figura sentada numa pedra no meio da estrada, a polir uma adaga de prata. É AVARUS.' },
+                    { type: 'dialogue', speaker: 'AVARUS', text: '(Um sorriso zombeteiro) Bem, aquilo foi um espetáculo deprimente de se ver. Muita transpiração, pouca inspiração.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(Aponta a espada para ele, a sua voz um rosnado) Tu. Sabias que ele estaria lá.' },
+                    { type: 'dialogue', speaker: 'AVARUS', text: '(Levanta as mãos num gesto de falsa inocência) Eu apenas apontei a direção do ninho. Não tenho culpa se a cria cresceu e se tornou um monstro. E, francamente, um monstro aborrecido. Lógica pura, previsibilidade... Onde está a piada nisso?' },
+                    { type: 'paragraph', text: 'Ele levanta-se e atira uma moeda a Dante.' },
+                    { type: 'dialogue', speaker: 'AVARUS', text: 'Um conselho, já que gosto de um bom jogo. Vocês estão a tentar lutar contra um número. Ele é a lógica. Talvez precisem de algo que não se pode calcular... uma história, talvez? Uma lenda. Procurem a velha nas montanhas. A que fala com pedras e metal.' },
+                    { type: 'paragraph', text: 'Avarus faz uma vénia teatral e desaparece por um caminho lateral, assobiando.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(Olhando para a moeda na mão de Dante) Eu odeio-o. Mas ele tem um ponto. O teu irmão transformou a guerra num problema de matemática.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: 'Gaia... a artesã. Se ela existe, e se as lendas são verdadeiras, ela vive nas Montanhas Cinzentas. Um lugar de onde poucos regressam.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(Fecha a mão sobre a moeda, o seu olhar endurecido) Então seremos os primeiros.' }
+                ]
+            },
+            {
+                id: 11,
+                act: 2,
+                title: 'O General Caído e o Peso da Eternidade',
+                summary: 'O forte é um esqueleto de pedra contra um céu cinzento e indiferente. O vento uiva através das ameias quebradas. Lá dentro, sentado em meditação no que outrora foi uma sala do trono, está o General ORIN.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'EXT. MONTANHAS CINZENTAS, FORTE EM RUÍNAS - DIA' },
+                    { type: 'paragraph', text: 'O forte é um esqueleto de pedra contra um céu cinzento e indiferente. O vento uiva através das ameias quebradas.' },
+                    { type: 'paragraph', text: 'Lá dentro, sentado em meditação no que outrora foi uma sala do trono, está o General ORIN. Ele é um homem idoso, mas a sua estrutura é a de um gigante. A sua pele tem a textura do granito. Ao seu lado, pousada num pedestal de pedra, está uma manopla maciça, uma das doze armas dos signos lendárias, que pulsa com uma aura de desespero palpável.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: '(A sua voz é respeitosa, mas firme) General Orin. O mundo precisa da sua ajuda.' },
+                    { type: 'paragraph', text: 'Orin abre os olhos. São olhos que viram a ascensão e queda de impérios, e estão terrivelmente cansados.' },
+                    { type: 'dialogue', speaker: 'ORIN', text: '(A sua voz é como o ranger de pedras) Crianças... A palavra "ajuda" é o que começa todas as guerras. O que vocês chamam de escuridão... é só silêncio. E o silêncio é paz. Deixem o mundo morrer em paz.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Não! O meu irmão está lá fora a tentar criar esse tipo de "paz". Não é paz, é um vazio. Nós não vamos desistir.' },
+                    { type: 'dialogue', speaker: 'ORIN', text: '(Levanta-se, o seu tamanho a ensombrar a sala) Então não me deixam escolha. A teimosia é uma lição que se aprende com dor.' },
+                    { type: 'paragraph', text: 'A batalha é brutal e curta. Orin comanda a própria terra. Paredes de pedra erguem-se, o chão abre-se em fendas. A equipa é completamente dominada.' },
+                    { type: 'paragraph', text: 'À beira da aniquilação, Dante, ferido e ofegante, para de lutar.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(Grita, a sua voz a ecoar na sala) Nós não te podemos derrotar... mas não é por isso que estamos aqui! Nós viemos para te lembrar! Lembrar-te que vale a pena lutar!' },
+                    { type: 'paragraph', text: 'Enquanto Alira e Korara criam uma distração desesperada, Dante corre, não para atacar Orin, mas para a manopla. Ele salta e coloca as mãos sobre a arma lendária. Uma luz dourada irrompe da sua mão, envolvendo a manopla. A energia roxa do desespero recua.' },
+                    { type: 'paragraph', text: 'A dor nos olhos de Orin transforma-se em clareza. Ele olha para as suas mãos, como se as visse pela primeira vez em séculos.' },
+                    { type: 'paragraph', text: 'Nesse momento, a energia libertada atrai uma horda de criaturas da Umbra, que invadem o forte.' },
+                    { type: 'dialogue', speaker: 'ORIN', text: '(Um sorriso cansado e genuíno forma-se no seu rosto de pedra) Talvez... talvez tenhas razão, garoto. Vão. Eu seguro-os.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Não! Nós lutamos juntos!' },
+                    { type: 'dialogue', speaker: 'ORIN', text: 'A minha luta acabou há muito tempo. A vossa está apenas a começar. Agora vão!' },
+                    { type: 'paragraph', text: 'Orin vira-se para a horda. Com um rugido que abala as montanhas, ele lança-se contra eles, derrubando os pilares do forte e soterrando-se a si mesmo e aos monstros sob toneladas de pedra.' },
+                    { type: 'paragraph', text: 'Antes de o teto desabar, a sua voz ecoa uma última vez.' },
+                    { type: 'dialogue', speaker: 'ORIN', text: 'A artesã... Gaia... na Forja das Sombras... ela...' }
+                ]
+            },
+            {
+                id: 12,
+                act: 2,
+                title: 'A Forja das Sombras e a Artesã dos Deuses',
+                summary: 'A entrada da Forja não é uma porta, mas uma fenda na montanha que exala um calor seco e o cheiro a ozono. Lá dentro, o lugar é uma caverna colossal, iluminada não por tochas, mas pelos rios de metal derretido que correm em canais no chão.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'INT. FORJA DAS SOMBRAS - DIA' },
+                    { type: 'paragraph', text: 'A entrada da Forja não é uma porta, mas uma fenda na montanha que exala um calor seco e o cheiro a ozono. Lá dentro, o lugar é uma caverna colossal, iluminada não por tochas, mas pelos rios de metal derretido que correm em canais no chão. O teto é um aglomerado de cristais escuros que refletem a luz incandescente, parecendo um céu noturno cheio de estrelas vermelhas.' },
+                    { type: 'paragraph', text: 'No centro da caverna, ao lado de uma bigorna de material desconhecido, uma mulher martela um pedaço de metal brilhante. O som ecoa com um ritmo perfeito. É GAIA. O seu cabelo é branco como a neve, preso numa trança prática, e os seus braços, embora esguios, são definidos por músculos de quem passou milénios a trabalhar.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(Sussurra, maravilhada) Pelos meus antepassados... A forja dos deuses.' },
+                    { type: 'paragraph', text: 'Gaia não se vira. O martelar continua.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(Avança um passo, a sua voz a ecoar no espaço vasto) Gaia? Nós fomos enviados pelo General Orin.' },
+                    { type: 'paragraph', text: 'O martelar para. O silêncio que se segue é pesado.' },
+                    { type: 'dialogue', speaker: 'GAIA', text: '(A sua voz é como metal a arrefecer, forte e clara) O velho tolo finalmente encontrou a sua paz, então. E enviou-me os seus problemas. O que querem, crianças barulhentas? Armas? Armaduras? A minha clientela divina já não paga as suas contas há muito tempo.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Nós... nós queremos entender. A Umbra. As armas.' },
+                    { type: 'paragraph', text: 'Gaia se vira. Ela os estuda com um olhar que penetra a alma.' },
+                    { type: 'dialogue', speaker: 'GAIA', text: 'A "Umbra", como lhe chamam, não é um monstro. É um eco. O eco de uma guerra estúpida travada por doze idiotas demasiado poderosos. Doze Titãs, cada um uma ideia levada ao extremo: Ordem, Caos, Amor, Conhecimento... Eles queriam criar um mundo perfeito, mas não conseguiam concordar sobre a definição de "perfeito". Então, aniquilaram-se uns aos outros. A Umbra é o que sobrou. É a dor deles. O vazio que deixaram para trás. E agora, acredita que a única maneira de acabar com a dor é acabar com tudo o que existe.' },
+                    { type: 'paragraph', text: 'Ela aponta o martelo para Dante.' },
+                    { type: 'dialogue', speaker: 'GAIA', text: 'Vocês não podem lutar contra um eco. Não podem matar um vazio. Mas... (Ela olha para a sua forja) ...podem dar-lhe algo em que se concentrar. As doze armas que eu forjei para eles... o vosso Rei Magnus está a usá-las para amplificar o eco. Mas se fossem purificadas... poderiam ser usadas para o conter.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Então purifique-as para nós.' },
+                    { type: 'dialogue', speaker: 'GAIA', text: '(Ri, um som seco) Não funciona assim, garoto. As armas respondem à intenção. Para as purificar, precisam de entender o que elas representam. O conhecimento de que precisam não está aqui. Está guardado na Mina da Memória. Se conseguirem sobreviver a ela e ao seu guardião, talvez... talvez tenham uma chance. Agora saiam. Tenho trabalho a fazer.' },
+                    { type: 'paragraph', text: 'Ela vira-se e o som do martelo a bater no metal volta a encher a caverna.' }
+                ]
+            },
+            {
+                id: 13,
+                act: 2,
+                title: 'A Mina da Memória e o Peso do Passado',
+                summary: 'A entrada da mina é uma boca escura que exala o cheiro a pedra molhada e a algo mais... a esquecimento. Lá dentro, cristais de memória brilham nas paredes com uma luz fraca, projetando imagens fantasmagóricas de mineiros, revivendo os seus dias de trabalho num loop silencioso e melancólico.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'INT. MINA ABANDONADA - NOITE' },
+                    { type: 'paragraph', text: 'A entrada da mina é uma boca escura que exala o cheiro a pedra molhada e a algo mais... a esquecimento. Lá dentro, cristais de memória brilham nas paredes com uma luz fraca, projetando imagens fantasmagóricas de mineiros, revivendo os seus dias de trabalho num loop silencioso e melancólico.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(Apertando o cabo do seu martelo, desconfortável) Eu não gosto deste lugar. O silêncio aqui... tem peso. E não é o peso reconfortante do ouro.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: 'Fiquem alerta. Gaia disse que o conhecimento era guardado. É um teste.' },
+                    { type: 'paragraph', text: 'Eles adentram uma vasta caverna. No centro, OMNESIA, o Devorador de Memórias, agita-se. É um golem colossal feito de cristais, carris de mina e equipamento de mineração enferrujado. Uma fornalha de fundição serve como o seu peito, brilhando com uma luz faminta.' },
+                    { type: 'paragraph', text: 'A batalha começa. A cada golpe dos seus braços de carril, uma onda de energia psíquica emana, atacando as suas mentes.' },
+                    { type: 'paragraph', text: 'Alira é atingida. Ela pára, confusa, a sua postura de general a vacilar. "Qual é a formação?", murmura ela.' },
+                    { type: 'paragraph', text: 'Dante é atingido. A imagem de Virgilio na sua mente começa a desfazer-se, o rosto a ficar desfocado.' },
+                    { type: 'dialogue', speaker: 'OMNESIA (VOZ PSÍQUICA)', text: 'O erro dói. A falha envenena. O arrependimento é um fardo. Porquê carregar esse peso? Entreguem-no. O esquecimento... é paz.' },
+                    { type: 'paragraph', text: 'A batalha vira-se para Korara. O golem atinge-a. Ela cai de joelhos, a sua mão a ir instintivamente para a pequena bolsa onde guarda a sua primeira moeda, o seu amuleto da sorte. Mas ela não sente nada. A memória da promessa que fez à sua família, de que nunca mais passariam fome, desaparece.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(Chorando, a voz rouca de angústia) Para quê...? Todo este esforço... para quê?' },
+                    { type: 'paragraph', text: 'Ela olha para a sua primeira moeda, agora apenas um pedaço de metal inútil. Mas então, ela vê Dante, a lutar para se agarrar à imagem do seu irmão.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(Gritando, mais para si mesmo do que para o golem) Os nossos erros... as nossas memórias... eles fazem de nós quem somos! Um passado sem dor é um futuro sem lições!' },
+                    { type: 'paragraph', text: 'Inspirada, Korara levanta-se, as lágrimas ainda a escorrer pelo seu rosto.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: 'O valor... não está na moeda! Está na promessa!' },
+                    { type: 'paragraph', text: 'Com um grito, num ato de puro desespero e emoção, ela atira a sua primeira moeda, o seu bem mais precioso, para dentro de uma engrenagem exposta no corpo do golem, bloqueando-a por um instante crucial.' },
+                    { type: 'paragraph', text: 'O sacrifício dela dá a Dante a abertura de que precisava. Ele salta e purifica o coração de cristal do monstro. As memórias regressam a todos, não como um conforto, mas como um fardo que eles agora escolhem carregar com orgulho.' }
+                ]
+            },
+            {
+                id: 14,
+                act: 2,
+                title: 'O Decreto do Rei e a Cirurgia da Alma',
+                summary: 'Virgilio apresenta os seus "resultados promissores" de Veridia a Magnus e ao conselho. O General ORVAK está presente, o seu rosto uma máscara de incerteza. Virgilio propõe a implementação do Protocolo de Pacificação em todas as províncias.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'INT. SALA DO TRONO, PALÁCIO DO VÁCUO - DIA' },
+                    { type: 'paragraph', text: 'Virgilio apresenta os seus "resultados promissores" de Veridia a Magnus e ao conselho. O General ORVAK está presente, o seu rosto uma máscara de incerteza.' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: 'A erradicação da esperança leva a uma estabilidade perfeita. Proponho a implementação do Protocolo de Pacificação em todas as províncias.' },
+                    { type: 'dialogue', speaker: 'ORVAK', text: '(A sua voz baixa, hesitante) Lorde Virgilio... com todo o respeito, o que propõe não é pacificação. É... uma lobotomia espiritual. Estamos a criar cascas, não cidadãos.' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: '(Vira-se para Orvak, os seus olhos frios como gelo) O sofrimento é uma doença, General. A emoção descontrolada é o sintoma. O que eu proponho não é crueldade; é cirurgia. Uma cirurgia na alma da nação para remover o cancro do caos.' },
+                    { type: 'paragraph', text: 'Magnus, satisfeito, bate com o punho no braço do trono. O som ecoa. O decreto é emitido.' },
+                    { type: 'sceneTitle', text: 'CENA 2' },
+                    { type: 'location', text: 'EXT. MERCADO DA CIDADE - DIA' },
+                    { type: 'paragraph', text: 'A equipa de Dante testemunha a brutalidade da nova lei. Guardas Reais, usando lanças com pontas de Erie Crystal, cercam um mercador que protesta contra os novos impostos.' },
+                    { type: 'dialogue', speaker: 'MERCADOR', text: 'Isto não é ordem, é escravidão!' },
+                    { type: 'paragraph', text: 'O capitão da guarda toca-o no ombro com a ponta da lança. O homem grita de dor e depois fica em silêncio, os seus olhos a ficarem vazios. A multidão recua em terror.' },
+                    { type: 'paragraph', text: 'Dante, Alira e Korara são forçados a uma escolha.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: '(Segurando o braço de Dante) Não podemos! Somos a única esperança deles! Se formos capturados agora, tudo acaba!' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(Puxando o braço) Se não lutarmos por um homem, que esperança estamos a oferecer a todos?' },
+                    { type: 'paragraph', text: 'Ele não espera por uma resposta. O conflito explode numa batalha curta e brutal no meio do mercado. Eles conseguem salvar o mercador, mas são forçados a uma fuga desesperada pelos becos, agora marcados como os inimigos públicos número um do reino. A guerra silenciosa acabou. A guerra aberta começou.' }
+                ]
+            },
+            {
+                id: 15,
+                act: 2,
+                title: 'A Queda da General e a Escolha da Lealdade',
+                summary: 'Alira move-se como uma sombra pelo quartel-general, um lugar que ela conhece como a palma da sua mão. Ela evita as patrulhas, a sua expressão uma mistura de dor e determinação. Ela encontra o General ORVAK no seu escritório, a olhar para um mapa de Agharta onde pequenas luzes vermelhas piscam, representando focos de "desordem".',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'INT. QUARTEL-GENERAL DA GUARDA REAL - NOITE' },
+                    { type: 'paragraph', text: 'Alira move-se como uma sombra pelo quartel-general, um lugar que ela conhece como a palma da sua mão. Ela evita as patrulhas, a sua expressão uma mistura de dor e determinação. Ela encontra o General ORVAK no seu escritório, a olhar para um mapa de Agharta onde pequenas luzes vermelhas piscam, representando focos de "desordem".' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: '(A sua voz é um sussurro tenso da porta) Ainda a contar as tuas vitórias, Orvak?' },
+                    { type: 'paragraph', text: 'Orvak vira-se, a sua mão a ir instintivamente para a sua espada, mas relaxa ao vê-la.' },
+                    { type: 'dialogue', speaker: 'ORVAK', text: 'Alira. Devia ter-te prendido quando tive oportunidade.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: 'E porque não o fizeste? Talvez porque sabes que eu tenho razão. Olha para o teu mapa. Não vês o que está a acontecer? Ele está a usar a própria escuridão que jurámos combater!' },
+                    { type: 'dialogue', speaker: 'ORVAK', text: '(Aponta para o mapa, a sua voz cansada) Eu vejo um Rei que está disposto a fazer o que for preciso para trazer a ordem. Tu vês aldeões apáticos, Alira. Eu vejo um mundo sem ganância, sem inveja, sem a dor que alimenta cada guerra que já lutámos. Magnus está a acabar com a guerra em si, e tu chamas-lhe monstro?' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: 'Ele não está a acabar com a guerra, está a acabar com o que nos torna humanos! Uma vida sem o risco da dor é uma vida sem a possibilidade da alegria. Tu não estás a construir a paz; estás a cavar uma vala comum, bonita e silenciosa!' },
+                    { type: 'paragraph', text: 'A discussão transforma-se num combate. As suas lâminas encontram-se num som agudo. É um duelo de espadas e ideologias, cada parada um argumento, cada golpe uma acusação.' },
+                    { type: 'dialogue', speaker: 'ORVAK', text: '(Bloqueando um golpe) A tua compaixão é uma fraqueza! Ela cega-te para o bem maior!' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: '(Contra-atacando, a sua voz a tremer de raiva) E a tua ordem é uma mentira! Construída sobre o silêncio dos oprimidos!' },
+                    { type: 'paragraph', text: 'A batalha termina com Alira a desarmar Orvak, a ponta da sua rapieira no seu pescoço. Os seus olhos encontram-se. Ele vê a dor nos dela.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: 'A minha lealdade é a Chama, não a um tirano que a vendeu às sombras. Faz a tua escolha, velho amigo.' },
+                    { type: 'paragraph', text: 'Ela baixa a arma e recua para as sombras, deixando Orvak com a sua espada no chão e o peso de uma decisão impossível.' }
+                ]
+            },
+            {
+                id: 16,
+                act: 2,
+                title: 'O Chamado às Armas e o Eco da Dúvida',
+                summary: 'O salão, antes um lugar de bebida e negócios duvidosos, é agora o coração de uma rebelião. Mercenários, ladrões e alguns cidadãos corajosos reúnem-se, o ar espesso de tensão e esperança. Alira, de pé numa mesa, dirige-se a eles.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'INT. SALÃO PRINCIPAL DA GUILDA - NOITE' },
+                    { type: 'paragraph', text: 'O salão, antes um lugar de bebida e negócios duvidosos, é agora o coração de uma rebelião. Mercenários, ladrões e alguns cidadãos corajosos reúnem-se, o ar espesso de tensão e esperança. Alira, de pé numa mesa, dirige-se a eles.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: '(A sua voz ecoa, firme e clara) Olhem à vossa volta. Lutámos uns contra os outros por glória, por ouro... por razões estúpidas. Hoje, lutamos por algo mais. Lutamos pelas nossas próprias almas! Pelo direito de sentir, de errar... de sermos imperfeitos! eu escolho a evuloção!' },
+                    { type: 'paragraph', text: 'Um rugido de aprovação sobe da multidão. Nesse momento, as portas explodem. A Guarda Real, liderada por um jovem e brilhante general, um protegido de Virgilio, invade o local.' },
+                    { type: 'dialogue', speaker: 'GENERAL PROTEGIDO', text: '(A sua voz é desprovida de paixão, um eco da de Virgilio) Em nome da Ordem Lógica do Rei Magnus, a variável sentimental conhecida como "rebelião" será neutralizada. Rendam-se para processamento.' },
+                    { type: 'paragraph', text: 'A batalha irrompe. É um combate caótico e desesperado. Dante, Alira e Korara lideram a defesa. Eles conseguem repelir o ataque, mas com pesadas baixas. A Guilda não é mais um refúgio; é a linha da frente.' },
+                    { type: 'sceneTitle', text: 'CENA 2' },
+                    { type: 'location', text: 'INT. SALA DE ESTRATÉGIA, PALÁCIO DO VÁCUO - NOITE' },
+                    { type: 'paragraph', text: 'Virgilio observa a batalha através de um cristal espião. Ele vê as suas táticas a serem executadas com perfeição. Ele vê a rebelião a sofrer perdas. Logicamente, ele deveria estar satisfeito.' },
+                    { type: 'paragraph', text: 'Mas ele foca na imagem de Dante, a lutar desesperadamente para proteger um mercenário ferido, a arrastá-lo para a segurança.' },
+                    { type: 'paragraph', text: 'O seu rosto, antes uma máscara de calma, contrai-se. Uma variável que ele não consegue calcular – um erro no seu sistema perfeito – começa a corroer a sua certeza. Ele desliga o cristal abruptamente, virando-se para a escuridão da sala, sozinho com uma emoção que ele não consegue nomear.' }
+                ]
+            },
+            {
+                id: 17,
+                act: 3,
+                title: 'A Calmaria Antes da Tempestade',
+                summary: 'O Salão da Guilda respira uma tensão controlada. O cheiro a cerveja foi substituído pelo de óleo de arma e ligaduras limpas. Mapas do Palácio do Vácuo, desenhados de memória por Alira e corrigidos por desertores, cobrem as mesas. Mercenários antes rivais agora formam unidades improvisadas, partilhando pão e afiando lâminas lado a lado.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'INT. SALÃO PRINCIPAL DA GUILDA - NOITE' },
+                    { type: 'paragraph', text: 'O Salão da Guilda respira uma tensão controlada. O cheiro a cerveja foi substituído pelo de óleo de arma e ligaduras limpas. Mapas do Palácio do Vácuo, desenhados de memória por Alira e corrigidos por desertores, cobrem as mesas. Mercenários antes rivais agora formam unidades improvisadas, partilhando pão e afiando lâminas lado a lado.' },
+                    { type: 'sceneTitle', text: 'CENA 2' },
+                    { type: 'location', text: 'INT. QUARTO ISOLADO, GUILDA - NOITE' },
+                    { type: 'paragraph', text: 'Num pequeno quarto, VIRGILIO está debruçado sobre uma mesa, cercado por diagramas complexos da arquitetura do palácio e notas sobre a natureza da energia da Umbra. Dante entra, o silêncio entre eles pesado de anos de separação e dor.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Não tens de carregar isto sozinho.' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: '(A voz rouca, sem erguer os olhos) A solidão é uma variável controlável. O peso da esperança alheia... não é. Magnus não é mais um homem. Ele é um conceito. O poder que ele comanda não é matéria, é ausência. É um buraco na realidade. Como se ataca um buraco, Dante?' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Nós não atacamos o buraco. Nós preenchemo-lo. Com tudo o que ele odeia.' },
+                    { type: 'paragraph', text: 'Virgilio finalmente levanta o olhar. Não há frieza, apenas o medo profundo de um génio diante de um problema sem solução lógica.' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: 'Ele vai usar as emoções de vocês como armas. Ele vai transformar a coragem em imprudência, a lealdade em sacrifício inútil, o amor... em dor. A minha lógica pode prever as táticas militares dele, mas não consigo calcular... a fragilidade de um coração.' },
+                    { type: 'sceneTitle', text: 'CENA 3' },
+                    { type: 'location', text: 'INT. SALA DO CONSELHO, PALÁCIO DO VÁCUO - NOITE' },
+                    { type: 'paragraph', text: 'Dois Ministros estão diante de uma projeção sombria de Magnus. PRAXUS, Ministro da Ordem, e NYSSARA, Ministra do Progresso.' },
+                    { type: 'dialogue', speaker: 'PRAXUS', text: 'Majestade, a rebelião é um tumor de sentimentalismo. Deve ser extirpado. Minhas legiões de autômatos estão prontas. Eles não sentem medo. A ordem perfeita responderá ao caos deles.' },
+                    { type: 'dialogue', speaker: 'NYSSARA', text: '(Um sorriso sutil) Ordem é estagnação, Praxus. A emoção é um fardo que nos impede de alcançar nosso potencial. A energia da Umbra nos oferece a chance de transcender, de catalisar nossa evolução. Por que apenas impor a paz quando podemos criar uma humanidade que a merece?' },
+                    { type: 'paragraph', text: 'Magnus apenas observa, deixando que as ambições deles sirvam a seus fins.' }
+                ]
+            },
+            {
+                id: 18,
+                act: 3,
+                title: 'O Preço da Confiança',
+                summary: 'Alira move-se pelos túneis fétidos. O selo no seu cantil continha uma localização. É uma armadilha, ela sabe, mas é uma que ela precisa de acionar. Ela chega a uma câmara subterrânea. CASSIAN, o seu antigo segundo-em-comando, espera-a.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'EXT. ESGOTOS DE AGHARTA - NOITE' },
+                    { type: 'paragraph', text: 'Alira move-se pelos túneis fétidos. O selo no seu cantil continha uma localização. É uma armadilha, ela sabe, mas é uma que ela precisa de acionar. Ela chega a uma câmara subterrânea. CASSIAN, o seu antigo segundo-em-comando, espera-a.' },
+                    { type: 'dialogue', speaker: 'CASSIAN', text: 'General. Pensei que nunca mais a veria.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: 'A lealdade exige provas, Cassian. A tua ou a minha?' },
+                    { type: 'paragraph', text: 'De repente, grades de metal descem, prendendo-os. Autómatos de Praxus, com lâminas giratórias, emergem das sombras.' },
+                    { type: 'dialogue', speaker: 'PRAXUS (VOZ ATRAVÉS DE UM COMUNICADOR)', text: 'Traidora. Eu sabia que o verme do sentimentalismo a tinha infetado. Morram juntos.' },
+                    { type: 'paragraph', text: 'A batalha é desesperada. Os autómatos são implacáveis. Alira e Cassian lutam de costas um para o outro, os seus estilos de combate a complementarem-se perfeitamente, um balé mortal da sua antiga parceria. Eles não lutam apenas pela sobrevivência, mas para reafirmar a confiança um no outro.' },
+                    { type: 'paragraph', text: 'Eles vencem, mas ficam exaustos, presos. É então que Korara aparece, explodindo uma parede com uma das suas invenções.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(A tossir poeira) Eu instalei um rastreador em ti. Ativos valiosos precisam de seguro. Agora vamos, antes que o valor do resgate suba.' }
+                ]
+            },
+            {
+                id: 19,
+                act: 3,
+                title: 'A Véspera da Guerra',
+                summary: 'Este episódio é a respiração profunda antes do mergulho. Mostra a escala da preparação. Alira e Cassian, agora juntos, planeiam o motim interno com outros soldados leais. Eles estabelecem um sinal: o momento em que a torre do relógio de Agharta parar, a traição começará.',
+                fullContent: [
+                    { type: 'paragraph', text: 'Este episódio é a profunda respiração antes do mergulho. Mostra a escala da preparação.' },
+                    { type: 'paragraph', text: 'MONTAGEM DE CENAS:' },
+                    { type: 'paragraph', text: 'Alira e Cassian, agora juntos, planeiam o motim interno com outros soldados leais. Eles estabelecem um sinal: o momento em que a torre do relógio de Agharta parar, a traição começará.' },
+                    { type: 'paragraph', text: 'Virgilio, febril, finaliza o mapa do "coração" do palácio: um nexo de energia que alimenta todas as defesas. Desativá-lo é a única chance.' },
+                    { type: 'paragraph', text: 'Korara usa a sua vasta rede de contactos para contrabandear armas e suprimentos para a cidade, esvaziando as suas próprias contas para financiar a guerra.' },
+                    { type: 'paragraph', text: 'Dante passa um tempo com os recrutas mais jovens, não treinando-os para lutar, mas ouvindo as suas histórias, reafirmando para si mesmo pelo que está a lutar: não por uma grande ideologia, mas pelas pequenas vidas que a compõem.' },
+                    { type: 'paragraph', text: 'No Palácio, vemos os dois Ministros a prepararem as suas próprias defesas. PRAXUS, Ministro da Ordem, alinha as suas legiões de autómatos com uma precisão arrepiante. NYSSARA, Ministra do Progresso, observa os seus espécimes bio-engenheirados, monstros grotescos, com um orgulho maternal.' },
+                    { type: 'paragraph', text: 'O episódio termina com a imagem da armada rebelde, uma mistura heterogénea de mercenários, cidadãos e soldados desertores, postada nas colinas, a olhar para o brilho roxo e doentio do Palácio do Vácuo enquanto a primeira trombeta de guerra soa.' }
+                ]
+            },
+            {
+                id: 20,
+                act: 3,
+                title: 'Uma Dívida a Pagar',
+                summary: 'A batalha final começa. O exército rebelde choca-se contra as legiões de Magnus. É um mar de aço e gritos. Enquanto a atenção está nos portões, a equipa de Dante infiltra-se através dos túneis que Korara mapeou.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'EXT. PORTÕES DE AGHARTA - AMANHECER' },
+                    { type: 'paragraph', text: 'A batalha final começa. O exército rebelde choca-se contra as legiões de Magnus. É um mar de aço e gritos. Enquanto a atenção está nos portões, a equipa de Dante infiltra-se através dos túneis que Korara mapeou.' },
+                    { type: 'sceneTitle', text: 'CENA 2' },
+                    { type: 'location', text: 'INT. PALÁCIO DO VÁCUO - DIA' },
+                    { type: 'paragraph', text: 'Dentro do palácio, o caos irrompe. A torre do relógio para. As forças de Cassian viram-se contra os seus antigos camaradas. A guerra civil dentro do palácio começa.' },
+                    { type: 'paragraph', text: 'A equipa de Dante usa o caos como cobertura, correndo em direção ao nexo de energia. Mas os Ministros intercetam-nos.' },
+                    { type: 'dialogue', speaker: 'PRAXUS', text: '(Bloqueando um corredor com os seus autómatos) O caos não passará. Esta é a fortaleza da Ordem.' },
+                    { type: 'dialogue', speaker: 'NYSSARA', text: '(Noutro corredor, cercada pelas suas monstruosidades bio-engenheiradas) Apenas os fortes sobreviverão a este dia. Deixem-me testar a vossa dignidade.' },
+                    { type: 'paragraph', text: 'A equipa é forçada a separar-se para enfrentar as duas ameaças simultaneamente. Korara e Alira enfrentam Praxus, enquanto Dante e Virgilio enfrentam Nyssara.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(Para Virgilio) Tens a certeza disto?' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: '(Ajustando as luvas, o seu rosto pálido mas determinado) Não. Mas a lógica diz que é a nossa melhor probabilidade. Tenta não morrer.' }
+                ]
+            },
+            {
+                id: 21,
+                act: 3,
+                title: 'Os Dois Ministros',
+                summary: 'A batalha de KORARA e ALIRA contra o MINISTRO PRAXUS é um jogo de xadrez mortal. Os autómatos de Praxus movem-se em formações perfeitas, sem uma única falha. Alira, com o seu génio tático, prevê e contra-ataca, mas Praxus está sempre um passo à frente.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'INT. GRANDE ARSENAL, PALÁCIO - DIA' },
+                    { type: 'paragraph', text: 'A batalha de KORARA e ALIRA contra o MINISTRO PRAXUS é um jogo de xadrez mortal. Os autómatos de Praxus movem-se em formações perfeitas, sem uma única falha. Alira, com o seu génio tático, prevê e contra-ataca, mas Praxus está sempre um passo à frente.' },
+                    { type: 'dialogue', speaker: 'PRAXUS', text: '(A sua voz ecoa de um comunicador) A vossa paixão é a vossa falha. Previsível. Ineficiente.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: '(Gritando para Korara, frustrada) Ele está a ler cada movimento nosso!' },
+                    { type: 'dialogue', speaker: 'KORARA', text: 'Então vamos parar de nos mover e começar a esmagar! Ele quer ordem? Vamos dar-lhe caos!' },
+                    { type: 'paragraph', text: 'Korara abandona toda a estratégia. Ela torna-se uma força da natureza, o seu martelo a esmagar as formações, forçando os autómatos a quebrar a linha para lidar com a sua fúria imprevisível. A desordem dela cria a abertura de que Alira precisava.' },
+                    { type: 'paragraph', text: 'Elas finalmente encurralam Praxus, que emerge para lutar pessoalmente. Ele é um espadachim metódico, mas a combinação da tática de Alira e da força bruta de Korara é demais para ele.' },
+                    { type: 'dialogue', speaker: 'PRAXUS', text: '(Derrotado, a olhar para a destruição) Vejam o que defendem... anarquia.' },
+                    { type: 'dialogue', speaker: 'ALIRA', text: 'Nós defendemos a escolha. E isso, às vezes, é confuso.' },
+                    { type: 'sceneTitle', text: 'CENA 2' },
+                    { type: 'location', text: 'INT. LABORATÓRIO BIOLÓGICO, PALÁCIO - DIA' },
+                    { type: 'paragraph', text: 'A batalha de DANTE e VIRGILIO contra a MINISTRA NYSSARA é um pesadelo. Nyssara não luta diretamente. Ela lança as suas criações, bestas que se adaptam e evoluem em tempo real. Uma fera desenvolve uma carapaça contra os ataques de Dante, outra torna-se imune ao fogo.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(Esquivando-se de um ataque) Isto é impossível! Elas continuam a mudar!' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: '(A analisar as criaturas, os seus olhos a moverem-se rapidamente) Elas não estão a evoluir aleatoriamente! Ela está a transferir a energia da Umbra de uma para outra, a corrigir as falhas! A lógica dela é impecável, mas... ela precisa de um condutor.' },
+                    { type: 'paragraph', text: 'Virgilio identifica o padrão. Nyssara está a usar-se a si mesma como o processador central.' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: 'Dante! Distrai a maior! Preciso de sobrecarregar o sistema!' },
+                    { type: 'paragraph', text: 'Enquanto Dante atrai a atenção da besta principal numa dança perigosa, Virgilio usa um terminal do laboratório para inundar a rede neural de Nyssara com dados falsos, equações impossíveis, paradoxos lógicos. As criaturas começam a ter espasmos, a sua evolução a tornar-se instável.' },
+                    { type: 'paragraph', text: 'Dante aproveita a chance para purificar o núcleo de energia que as conecta.' },
+                    { type: 'dialogue', speaker: 'NYSSARA', text: '(Caindo de joelhos, enquanto as suas criações se dissolvem em poças de lodo) Tolos... vocês rejeitam o futuro...' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Nós escolhemos o presente.' }
+                ]
+            },
+            {
+                id: 22,
+                act: 3,
+                title: 'O Coração do Vazio',
+                summary: 'A equipa, exausta e ferida, reúne-se e arromba as portas da sala do trono. A cena é surreal. MAGNUS está sentado no trono, mas ele não está apenas sentado. O metal negro do trono parece ter-se fundido com a sua armadura. As doze armas dos signos, corrompidas com energia roxa, orbitam lentamente à sua volta.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'INT. SALA DO TRONO - NOITE' },
+                    { type: 'paragraph', text: 'A equipa, exausta e ferida, reúne-se e arromba as portas da sala do trono. A cena é surreal. MAGNUS está sentado no trono, mas ele não está apenas sentado. O metal negro do trono parece ter-se fundido com a sua armadura. As doze armas dos signos, corrompidas com energia roxa, orbitam lentamente à sua volta.' },
+                    { type: 'dialogue', speaker: 'MAGNUS (VOZ DE LEGIÃO)', text: 'Os insetos... passaram pela minha teia. Mas aqui... a teia e a aranha são uma só.' },
+                    { type: 'paragraph', text: 'A batalha começa. Magnus envia as armas, uma a uma, e a equipa é forçada a trabalhar em perfeita sincronia.' },
+                    { type: 'paragraph', text: 'Alira e Cassian (que se junta a eles no último momento, ferido mas determinado) enfrentam a Lança e a Espada.' },
+                    { type: 'paragraph', text: 'Korara, com a sua força, enfrenta o Martelo e o Escudo.' },
+                    { type: 'paragraph', text: 'Virgilio, protegido pelos outros, analisa os padrões de energia.' },
+                    { type: 'paragraph', text: 'Dante, usando as aberturas que Virgilio cria, canaliza a sua energia, purificando as armas uma a uma em explosões de luz dourada.' },
+                    { type: 'paragraph', text: 'A última arma cai no chão, purificada. O silêncio. A equipa está de pé, vitoriosa.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(Ofegante) Acabou, Magnus!' },
+                    { type: 'dialogue', speaker: 'MAGNUS', text: '(Uma risada seca, como vidro a estilhaçar-se) Acabou? Não... Apenas começou.' }
+                ]
+            },
+            {
+                id: 23,
+                act: 3,
+                title: 'Avatar da Ausência',
+                summary: 'O corpo de Magnus estilhaça-se. A armadura desfaz-se em pó, e ele ergue-se, não mais um homem, mas um avatar colossal da própria Umbra, uma figura feita de escuridão e estrelas moribundas. A equipa lança um ataque combinado, mas cada golpe é absorvido pela escuridão.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'INT. SALA DO TRONO - CONTINUAÇÃO' },
+                    { type: 'paragraph', text: 'O corpo de Magnus estilhaça-se. A armadura desfaz-se em pó, e ele ergue-se, não mais um homem, mas um avatar colossal da própria Umbra, uma figura feita de escuridão e estrelas moribundas.' },
+                    { type: 'paragraph', text: 'A equipa lança um ataque combinado, mas cada golpe é absorvido pela escuridão. O Avatar levanta uma mão e liberta uma onda de energia que os atira contra as paredes. A força física é inútil.' },
+                    { type: 'paragraph', text: 'Ele então mergulha na mente de cada um, forçando-os a reviver os seus maiores fracassos num pesadelo psíquico.' },
+                    { type: 'paragraph', text: 'Alira revive a morte de Orvak, sentindo-se responsável.' },
+                    { type: 'paragraph', text: 'Korara está de volta à sua infância, a ver a sua família a passar fome enquanto ela esconde um pedaço de pão.' },
+                    { type: 'paragraph', text: 'Virgilio está preso no frio eterno do orfanato, sozinho para sempre, a lógica a abandoná-lo à mercê do desespero.' },
+                    { type: 'paragraph', text: 'Dante revive o momento em que Virgilio é levado, repetidamente.' },
+                    { type: 'paragraph', text: 'Eles estão quebrados. A esperança vacila. O episódio termina com os heróis de joelhos, perdidos nos seus próprios infernos pessoais, enquanto o Avatar da Ausência os observa em silêncio.' }
+                ]
+            },
+            {
+                id: 24,
+                act: 3,
+                title: 'O Sacrifício Pela Chama',
+                summary: 'Dante está de joelhos, a ver a cena do rapto de Virgilio a repetir-se em loop. A sua própria impotência a esfaqueá-lo vezes sem conta. Mas algo muda. Desta vez, ele não se foca na sua falha, mas na mão estendida do seu irmão. Na promessa silenciosa que ele fez. Ele levanta-se.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'INT. CAMPO DE BATALHA PSÍQUICO - NÃO-TEMPO' },
+                    { type: 'paragraph', text: 'Dante está de joelhos, a ver a cena do rapto de Virgilio a repetir-se em loop. A sua própria impotência a esfaqueá-lo vezes sem conta. Mas algo muda. Desta vez, ele não se foca na sua falha, mas na mão estendida do seu irmão. Na promessa silenciosa que ele fez. Ele levanta-se.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(Para a memória) Eu não te pude salvar então. Mas posso salvar-te agora.' },
+                    { type: 'paragraph', text: 'Ele atravessa o pesadelo e encontra a figura catatónica de Virgilio, encolhida no frio da ilusão do orfanato. Dante não tenta lutar contra a ilusão. Ele entra nela. Ele senta-se ao lado do seu irmão criança, abraça-o e sussurra.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Eu estou aqui agora. Juntos.' },
+                    { type: 'paragraph', text: 'Este ato de pura empatia quebra o feitiço. Virgilio desperta, lágrimas a escorrer pelo seu rosto, a redenção completa nos seus olhos.' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: '(A voz clara, serena) A ausência não pode ser destruída. Ela só pode ser... substituída. Requer um sacrifício. Uma consciência para se tornar a âncora.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: 'Então eu serei a âncora.' },
+                    { type: 'dialogue', speaker: 'VIRGILIO', text: '(Ele coloca a mão no ombro de Dante, e pela primeira vez em anos, sorri. Um sorriso genuíno e triste) Tu ensinaste-me a sentir, irmão. E eu sinto que o meu propósito nunca foi governar com a lógica, mas proteger com o coração. Tu és a esperança de Chama, Como uma brasa ardente que aquece toda uma familia!. Eu... eu sou apenas o erro que te colocou neste caminho. Deixa-me consertar o meu último erro.' },
+                    { type: 'paragraph', text: 'Antes que Dante possa reagir, Virgilio empurra-o para fora do nexo de energia. Sozinho, no coração do vazio, Virgilio fecha os olhos e aceita o seu destino, tornando-se a nova âncora para a Umbra, contendo-a dentro de si e salvando o mundo ao custo da sua própria existência. A escuridão dissipa-se, substituída por uma luz ofuscante.' }
+                ]
+            },
+            {
+                id: 25,
+                act: 3,
+                title: 'Um Mundo Sem Deuses',
+                summary: 'Dante está sozinho no centro da sala do trono agora silenciosa. Onde o Avatar estava, flutuam duas pequenas pedras brilhantes, as Runas do fogo do olimpo, tudo o que restou de Virgilio. Ele pega-as, sentindo o calor e um eco da presença do seu irmão.',
+                fullContent: [
+                    { type: 'sceneTitle', text: 'CENA 1' },
+                    { type: 'location', text: 'INT. SALA DO TRONO - AMANHECER' },
+                    { type: 'paragraph', text: 'Dante está sozinho no centro da sala do trono agora silenciosa. Onde o Avatar estava, flutuam duas pequenas pedras brilhantes, as Runas do fogo olimpo, tudo o que restou de Virgilio. Ele pega-as, sentindo o calor e um eco da presença do seu irmão.' },
+                    { type: 'sceneTitle', text: 'CENA 2' },
+                    { type: 'location', text: 'EXT. AGHARTA EM RECONSTRUÇÃO - MESES DEPOIS - DIA' },
+                    { type: 'paragraph', text: 'Agharta está a ser reconstruída. O sol brilha. Vemos Alira e Cassian a liderar um novo conselho, a construir uma ordem baseada na confiança, não no medo.' },
+                    { type: 'paragraph', text: 'Vemos Korara, a gerir a logística da reconstrução com uma eficiência feroz, mas agora com um sorriso mais genuíno. Ela discute fervorosamente o custo de um prego com um carpinteiro, mas depois entrega-lhe uma bolsa de moedas generosa para alimentar a sua família.' },
+                    { type: 'paragraph', text: 'Dante recusa a coroa.' },
+                    { type: 'paragraph', text: 'A cena final: Dante está a colocar a primeira pedra na fundação de um novo orfanato no local do antigo. Ele está sujo de argamassa, cansado, mas em paz.' },
+                    { type: 'dialogue', speaker: 'KORARA', text: '(Aproximando-se, com um cesto de pão e queijo) A pedra está torta.' },
+                    { type: 'dialogue', speaker: 'DANTE', text: '(Sorri, sem olhar para cima) A vida é torta. É a imperfeição que faz eu continuar-la.' },
+                    { type: 'paragraph', text: 'Ele olha para o céu. Ele não está mais definido pelo que perdeu, mas pelo que está a construir. A câmara afasta-se, mostrando a cidade a reerguer-se, uma pedra imperfeita de cada vez.' },
+                    { type: 'sceneTitle', text: 'CENA PÓS-CRÉDITOS' },
+                    { type: 'paragraph', text: 'A tela está preta. Então, no centro, uma única runa materializa-se lentamente, brilhando com uma luz suave e dourada. É o símbolo de Chama. Um novo começo.' }
+                ]
+            }
+        ];
+
+        let characterChart = null;
+        let themeChart = null;
+
+        function showSection(sectionId) {
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            document.getElementById(sectionId).classList.add('active');
+
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            document.querySelector(`.nav-link[onclick="showSection('${sectionId}')"]`).classList.add('active');
+        }
+
+        function renderCharacterList() {
+            const listContainer = document.getElementById('character-list');
+            listContainer.innerHTML = '';
+            for (const id in charactersData) {
+                const char = charactersData[id];
+                const charElement = document.createElement('div');
+                charElement.className = 'text-center p-2 rounded-lg cursor-pointer transition hover:bg-secondary-bg';
+                charElement.onclick = () => renderCharacterDetails(id);
+                charElement.innerHTML = `
+                    <div class="w-20 h-20 mx-auto rounded-full secondary-bg flex items-center justify-center mb-2 border-2 border-gray-300">
+                        <span class="text-3xl font-bold accent-color">${char.name.charAt(0)}</span>
+                    </div>
+                    <p class="font-semibold text-gray-800">${char.name}</p>
+                `;
+                listContainer.appendChild(charElement);
+            }
+        }
+
+        function renderCharacterDetails(characterId) {
+            const char = charactersData[characterId];
+            const detailsContainer = document.getElementById('character-details');
+            detailsContainer.innerHTML = `
+                <h3 class="text-2xl font-bold accent-color mb-3">${char.name}</h3>
+                <p class="text-gray-600 mb-4"><strong>Biografia:</strong> ${char.bio}</p>
+                <p class="text-gray-600 mb-4"><strong>Arco Narrativo:</strong> ${char.arc}</p>
+                <h4 class="text-lg font-semibold accent-color mb-2">Presença na História</h4>
+                <div class="chart-container h-64 md:h-72">
+                    <canvas id="characterChart"></canvas>
+                </div>
+            `;
+            createCharacterChart(char);
+        }
+
+        function createCharacterChart(char) {
+            const ctx = document.getElementById('characterChart').getContext('2d');
+            if (characterChart) {
+                characterChart.destroy();
+            }
+            characterChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Ato I: O Despertar', 'Ato II: A Escalada', 'Ato III: A Resolução'],
+                    datasets: [{
+                        label: 'Nº de Episódios Chave',
+                        data: [char.scenes.act1, char.scenes.act2, char.scenes.act3],
+                        backgroundColor: ['#EAE3D9', '#8A6E5F', '#C89F70'],
+                        borderColor: '#4A4A4A',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { stepSize: 1 }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.raw} episódios`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function renderTimeline() {
+            const actsContainer = document.getElementById('timeline-acts');
+            actsContainer.innerHTML = '';
+            [1, 2, 3].forEach(actNumber => {
+                const actDiv = document.createElement('div');
+                const actTitle = ['O Despertar', 'A Escalada e o Confronto', 'A Resolução'][actNumber - 1];
+                actDiv.innerHTML = `<h3 class="text-xl font-bold accent-color mb-4 border-b-2 border-secondary-bg pb-2">Ato ${actNumber}: ${actTitle}</h3>`;
+                
+                const episodesGrid = document.createElement('div');
+                episodesGrid.className = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4';
+                
+                episodesData.filter(ep => ep.act === actNumber).forEach(episode => {
+                    const episodeDiv = document.createElement('div');
+                    episodeDiv.className = 'timeline-item p-3 rounded-lg secondary-bg border-2 border-transparent text-center';
+                    episodeDiv.dataset.episodeId = episode.id;
+                    episodeDiv.onclick = () => showEpisodeDetails(episode.id);
+                    episodeDiv.innerHTML = `
+                        <p class="font-bold text-sm accent-color">Ep. ${episode.id}</p>
+                        <p class="text-xs text-gray-700">${episode.title}</p>
+                    `;
+                    episodesGrid.appendChild(episodeDiv);
+                });
+                
+                actDiv.appendChild(episodesGrid);
+                actsContainer.appendChild(actDiv);
+            });
+        }
+
+        function showEpisodeDetails(episodeId) {
+            const episode = episodesData.find(ep => ep.id === episodeId);
+            const container = document.getElementById('episode-details-container');
+            
+            document.querySelectorAll('.timeline-item').forEach(item => item.classList.remove('active'));
+            document.querySelector(`.timeline-item[data-episode-id='${episodeId}']`).classList.add('active');
+
+            let detailsHtml = `<h4 class="text-xl font-bold highlight-color mb-2">Episódio ${episode.id}: ${episode.title}</h4>`;
+
+            if (episode.fullContent && episode.fullContent.length > 0) {
+                episode.fullContent.forEach(item => {
+                    if (item.type === 'sceneTitle') {
+                        detailsHtml += `<h5 class="episode-detail-scene-title">${item.text}</h5>`;
+                    } else if (item.type === 'location') {
+                        detailsHtml += `<p class="episode-detail-location">${item.text}</p>`;
+                    } else if (item.type === 'paragraph') {
+                        detailsHtml += `<p class="episode-detail-paragraph">${item.text}</p>`;
+                    } else if (item.type === 'dialogue') {
+                        detailsHtml += `<blockquote class="episode-detail-dialogue">
+                                            <p>${item.speaker}:</p>
+                                            <p>${item.text}</p>
+                                        </blockquote>`;
+                    }
+                });
+            } else {
+                detailsHtml += `<p class="text-gray-700">${episode.summary}</p>`;
+            }
+
+            container.innerHTML = detailsHtml;
+            container.style.display = 'block';
+        }
+
+        function renderAllEpisodes() {
+            const allEpisodesListContainer = document.getElementById('all-episodes-list');
+            allEpisodesListContainer.innerHTML = ''; // Clear previous content
+
+            episodesData.forEach(episode => {
+                const episodeDiv = document.createElement('div');
+                episodeDiv.className = 'p-4 secondary-bg rounded-lg border border-gray-200';
+
+                let contentHtml = `<h3 class="text-lg font-bold highlight-color mb-2">Episódio ${episode.id}: ${episode.title}</h3>`;
+
+                if (episode.fullContent && episode.fullContent.length > 0) {
+                    episode.fullContent.forEach(item => {
+                        if (item.type === 'sceneTitle') {
+                            contentHtml += `<h4 class="episode-detail-scene-title">${item.text}</h4>`;
+                        } else if (item.type === 'location') {
+                            contentHtml += `<p class="episode-detail-location">${item.text}</p>`;
+                        } else if (item.type === 'paragraph') {
+                            contentHtml += `<p class="episode-detail-paragraph">${item.text}</p>`;
+                        } else if (item.type === 'dialogue') {
+                            contentHtml += `<blockquote class="episode-detail-dialogue">
+                                                <p>${item.speaker}:</p>
+                                                <p>${item.text}</p>
+                                            </blockquote>`;
+                        }
+                    });
+                } else {
+                    contentHtml += `<p class="text-gray-700 text-sm">${episode.summary}</p>`;
+                }
+                episodeDiv.innerHTML = contentHtml;
+                allEpisodesListContainer.appendChild(episodeDiv);
+            });
+        }
+
+        function createThemeChart() {
+            const ctx = document.getElementById('themeChart').getContext('2d');
+            if (themeChart) {
+                themeChart.destroy();
+            }
+            themeChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Lógica (Ordem)', 'Emoção (Caos/Liberdade)'],
+                    datasets: [{
+                        label: 'Foco Temático',
+                        data: [55, 45],
+                        backgroundColor: ['#8A6E5F', '#C89F70'],
+                        borderColor: '#FDFBF7',
+                        borderWidth: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.label}: ${context.raw}% de foco narrativo`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderCharacterList();
+            renderCharacterDetails('dante');
+            renderTimeline();
+            renderAllEpisodes(); // Call the new function to render all episodes
+            createThemeChart();
+            showSection('overview');
+        });
+
+    </script>
+</body>
+</html>
